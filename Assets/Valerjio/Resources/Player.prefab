@@ -129,10 +129,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f8660d7b0b6ee44fa943fe79574a9d5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Position: {x: 0, y: 0}
-  ladder: {fileID: 8951483939253894124}
+  Direction: {x: 0, y: 0}
+  GamePosition: {x: 0, y: 0}
   moveCulldown: 0.1
+  ladder: {fileID: 8951483939253894124}
   bonesPrefab: {fileID: 623782994726434135, guid: 0f0f494feebc43e46a77ecaad8fad355, type: 3}
+  photonView: {fileID: 0}
 --- !u!114 &-7915634972649154586
 MonoBehaviour:
   m_ObjectHideFlags: 0

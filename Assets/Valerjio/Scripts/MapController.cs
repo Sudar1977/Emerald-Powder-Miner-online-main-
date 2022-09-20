@@ -1,20 +1,29 @@
 using ExitGames.Client.Photon;
 using Photon.Pun;
 using Photon.Realtime;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 public class MapController : MonoBehaviour, IOnEventCallback
 {
-    [SerializeField] GameObject cellPrefab;
+    [SerializeField] private GameObject cellPrefab;
 
-    GameObject[,] cells = new GameObject[20, 10];
-    List<PlayerControls> players = new List<PlayerControls>();
+    private double lastTickTime;
 
+    private GameObject[,] cells;
+    private List<PlayerControls> players = new List<PlayerControls>();
+    //private Vector2Int[] directions;
+
+    public void AddPlayer(PlayerControls player)
+    {
+        players.Add(player);
+        cells[player.GamePosition.x, player.GamePosition.y].SetActive(false);
+    }
     private void Start()
     {
+        cells = new GameObject[20, 10];
+
         for (int i = 0; i < cells.GetLength(0); i++)
         {
             for (int j = 0; j < cells.GetLength(1); j++)
@@ -22,14 +31,26 @@ public class MapController : MonoBehaviour, IOnEventCallback
                 cells[i, j] = Instantiate(cellPrefab, new Vector3Int(i, j, 0), Quaternion.identity, transform);
             }
         }
-
-        PhotonPeer.RegisterType(typeof(Vector2Int), 242, SerializeV2Int, DeserializeV2Int);
     }
 
-    public void AddPlayer(PlayerControls player)
+    private void Update()
     {
-        players.Add(player);
-        cells[player.Position.x, player.Position.y].SetActive(false);
+        if(PhotonNetwork.Time > lastTickTime + 1 &&
+           PhotonNetwork.IsMasterClient &&
+           PhotonNetwork.CurrentRoom.PlayerCount == 2)
+        {
+            //разослать всем событие
+            Vector2Int[] directions = players
+                .OrderBy(p => p.photonView.Owner.ActorNumber)
+                .Select(p => p.Direction)
+                .ToArray();
+            RaiseEventOptions options = new RaiseEventOptions { Receivers = ReceiverGroup.Others }; //ReceiverGroup.Others };
+            SendOptions sendOptions = new SendOptions { Reliability = true };
+            PhotonNetwork.RaiseEvent(42, directions, options, sendOptions);
+
+            //сделать шаг игры
+            PerformTick(directions);
+        }
     }
 
     public int MesureLadderLength(Vector2Int position)
@@ -44,16 +65,16 @@ public class MapController : MonoBehaviour, IOnEventCallback
     {
         if (players.Count != 2) return false;
         var another = players.First(p => p != player);
-        if (player.Position.x != another.Position.x) return false;
-        if (player.Position.y <= another.Position.y) return false;
+        if (player.GamePosition.x != another.GamePosition.x) return false;
+        if (player.GamePosition.y <= another.GamePosition.y) return false;
         
         int i = 1;
-        while (player.Position.y-i > another.Position.y)
+        while (player.GamePosition.y-i > another.GamePosition.y)
         {
-            if (cells[player.Position.x, player.Position.y - i].activeSelf) break;
+            if (cells[player.GamePosition.x, player.GamePosition.y - i].activeSelf) break;
             i++;
         }
-        if (player.Position.y - i == another.Position.y) return true;
+        if (player.GamePosition.y - i == another.GamePosition.y) return true;
         return false;
     }
     public bool isHaveEmptyCellBelow(Vector2Int position)
@@ -64,26 +85,41 @@ public class MapController : MonoBehaviour, IOnEventCallback
 
     public void OnEvent(EventData photonEvent)
     {
-        if (photonEvent.Code != 42) return;
-        var pos = (Vector2Int)photonEvent.CustomData;
-        cells[pos.x, pos.y].SetActive(false);
+        switch (photonEvent.Code)
+        {
+            case 42:
+                //var pos = (Vector2Int)photonEvent.CustomData;
+                //cells[pos.x, pos.y].SetActive(false);
+                Vector2Int[] directions = (Vector2Int[])photonEvent.CustomData;
+                PerformTick(directions);
+                break;
+        } 
     }
-    public void OnEnable() => PhotonNetwork.AddCallbackTarget(this);
-    public void OnDisable() => PhotonNetwork.RemoveCallbackTarget(this);
 
-    public static byte[] SerializeV2Int(object obj)
+    private void PerformTick(Vector2Int[] directions)
     {
-        Vector2Int cast = (Vector2Int)obj;
-        byte[] result = new byte[8];
-        BitConverter.GetBytes(cast.x).CopyTo(result, 0);
-        BitConverter.GetBytes(cast.y).CopyTo(result, 4);
-        return result;
+        if (players.Count != directions.Length) return;
+        int i = 0;
+        foreach(var player in players.OrderBy(p=>p.photonView.Owner.ActorNumber))
+        {
+            player.Direction = directions[i++];
+            player.GamePosition += player.Direction;
+            if (player.GamePosition.x < 0)  player.GamePosition.x = 0;
+            if (player.GamePosition.y < 0)  player.GamePosition.y = 0;
+            if (player.GamePosition.x > 19) player.GamePosition.x = cells.GetLength(0)-1;
+            if (player.GamePosition.y > 9)  player.GamePosition.y = cells.GetLength(1)-1;
+            cells[player.GamePosition.x, player.GamePosition.y].SetActive(false);
+        }
+        lastTickTime = PhotonNetwork.Time;
     }
-    public static object DeserializeV2Int(byte[] data)
+
+    public void OnEnable()
     {
-        var result = new Vector2Int();
-        result.x = BitConverter.ToInt32(data, 0);
-        result.y = BitConverter.ToInt32(data, 4);
-        return result;
+        PhotonNetwork.AddCallbackTarget(this);
     }
+    public void OnDisable()
+    {
+        PhotonNetwork.RemoveCallbackTarget(this);
+    }
+
 }

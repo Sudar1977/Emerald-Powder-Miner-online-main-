@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 public class LobbyManager : MonoBehaviourPunCallbacks
 {
-    [SerializeField] Text LogText;
+    [SerializeField] private Text LogText;
     void Start()
     {
         PhotonNetwork.NickName = "Player " + Random.Range(1000, 9999);
