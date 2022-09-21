@@ -16,11 +16,11 @@ public class Bones : MonoBehaviour
 
     private void Update()
     {
-        if (map.isHaveEmptyCellBelow(position) && PhotonNetwork.Time > lastMoveStepTime + .5f)
-        {
-            lastMoveStepTime = PhotonNetwork.Time;
-            position += Vector2Int.down;
-        }
-        transform.position = Vector3.Lerp(new Vector3(position.x, position.y, 0), transform.position, .5f);
+        //if (map.isHaveEmptyCellBelow(position) && PhotonNetwork.Time > lastMoveStepTime + .5f)
+        //{
+        //    lastMoveStepTime = PhotonNetwork.Time;
+        //    position += Vector2Int.down;
+        //}
+        //transform.position = Vector3.Lerp(new Vector3(position.x, position.y, 0), transform.position, .5f);
     }
 }

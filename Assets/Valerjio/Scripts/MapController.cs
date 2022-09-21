@@ -99,18 +99,69 @@ public class MapController : MonoBehaviour, IOnEventCallback
     private void PerformTick(Vector2Int[] directions)
     {
         if (players.Count != directions.Length) return;
+
+        PlayerControls[] sortedPlayers = players
+            .OrderBy(p => p.photonView.Owner.ActorNumber)
+            .ToArray();
+
         int i = 0;
-        foreach(var player in players.OrderBy(p=>p.photonView.Owner.ActorNumber))
+        foreach(var player in sortedPlayers)
         {
             player.Direction = directions[i++];
-            player.GamePosition += player.Direction;
-            if (player.GamePosition.x < 0)  player.GamePosition.x = 0;
-            if (player.GamePosition.y < 0)  player.GamePosition.y = 0;
-            if (player.GamePosition.x > 19) player.GamePosition.x = cells.GetLength(0)-1;
-            if (player.GamePosition.y > 9)  player.GamePosition.y = cells.GetLength(1)-1;
-            cells[player.GamePosition.x, player.GamePosition.y].SetActive(false);
+            MinePlayerBlock(player);
+
         }
+        foreach (var player in sortedPlayers)
+            MovePlayer(player);
+
         lastTickTime = PhotonNetwork.Time;
+    }
+
+    private void MinePlayerBlock(PlayerControls player)
+    {
+        Vector2Int targetPosition = player.GamePosition + player.Direction;
+
+        // опаем блок
+        if (targetPosition.x < 0) return;
+        if (targetPosition.y < 0) return;
+        if (targetPosition.x >= cells.GetLength(0)) return;
+        if (targetPosition.y >= cells.GetLength(1)) return;
+
+        cells[targetPosition.x, targetPosition.y].SetActive(false);
+
+        //проверим не убило ли нас этим копанием
+        Vector2Int pos = targetPosition;
+        PlayerControls  minePlayer = players.First(p => p.photonView.IsMine);
+        if (minePlayer != player)
+        {
+            while (pos.y < cells.GetLength(1) && !cells[pos.x, pos.y].activeSelf)
+            {
+                if(pos == minePlayer.GamePosition)
+                {
+                    PhotonNetwork.LeaveRoom();
+                    break;
+                }
+                pos.y++;
+            }
+        }
+    }
+
+    private void MovePlayer(PlayerControls player)
+    {
+        player.GamePosition += player.Direction;
+        if (player.GamePosition.x < 0) player.GamePosition.x = 0;
+        if (player.GamePosition.y < 0) player.GamePosition.y = 0;
+        if (player.GamePosition.x >= cells.GetLength(0)) player.GamePosition.x = cells.GetLength(0) - 1;
+        if (player.GamePosition.y >= cells.GetLength(1)) player.GamePosition.y = cells.GetLength(1) - 1;
+
+        int ladderLenght = 0;
+        Vector2Int pos = player.GamePosition;
+        while (pos.y > 0 && !cells[pos.x, pos.y - 1].activeSelf)
+        {
+            ladderLenght++;
+            pos.y--;
+        }
+        player.setLadderLength(ladderLenght);
     }
 
     public void OnEnable()
